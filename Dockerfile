@@ -1,5 +1,5 @@
 ### FRONT BUILD START ###
-FROM --platform=$BUILDPLATFORM node:16-alpine as front
+FROM --platform=linux/amd64 node:16-alpine as front
 COPY ./web /app
 WORKDIR /app
 # Build front once upon multiarch build
@@ -8,7 +8,7 @@ RUN yarn install && yarn run build
 
 
 ### BUILD TORRSERVER MULTIARCH START ###
-FROM --platform=$BUILDPLATFORM golang:1.21.2-alpine as builder
+FROM --platform=linux/amd64 golang:1.21.2-alpine as builder
 
 COPY . /opt/src
 COPY --from=front /app/build /opt/src/web/build
@@ -26,7 +26,7 @@ RUN apk add --update g++ \
 && cd server \
 && go mod tidy \
 && go clean -i -r -cache \
-&& go build -ldflags '-w -s' --o "torrserver" ./cmd 
+&& go build -ldflags '-w -s' -o "torrserver" ./cmd 
 ### BUILD TORRSERVER MULTIARCH END ###
 
 
@@ -36,11 +36,6 @@ FROM debian:buster-slim as compressed
 COPY --from=builder /opt/src/server/torrserver ./torrserver
 
 RUN apt-get update && apt-get install -y upx-ucl && upx --best --lzma ./torrserver
-# Compress torrserver only for amd64 and arm64 no variant platforms
-# ARG TARGETARCH
-# ARG TARGETVARIANT
-# RUN if [ "$TARGETARCH" == 'amd64' ]; then compress=1; elif [ "$TARGETARCH" == 'arm64' ] && [ -z "$TARGETVARIANT"  ]; then compress=1; else compress=0; fi \
-# && if [[ "$compress" -eq 1 ]]; then ./upx --best --lzma ./torrserver; fi
 ### UPX COMPRESSING END ###
 
 
@@ -58,5 +53,5 @@ COPY ./docker-entrypoint.sh /docker-entrypoint.sh
 
 RUN apk add --no-cache --update ffmpeg
 
-CMD /docker-entrypoint.sh
-### BUILD MAIN IMAGE end ###
+ENTRYPOINT ["/docker-entrypoint.sh"]
+### BUILD MAIN IMAGE END ###
